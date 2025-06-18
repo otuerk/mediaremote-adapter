@@ -24,5 +24,30 @@ public struct TrackInfo: Codable {
             }
             return NSImage(data: data)
         }
+
+        enum CodingKeys: String, CodingKey {
+            case title, artist, album, isPlaying, durationMicros, elapsedTimeMicros, applicationName, bundleIdentifier, artworkDataBase64, artworkMimeType
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            self.title = try container.decodeIfPresent(String.self, forKey: .title)
+            self.artist = try container.decodeIfPresent(String.self, forKey: .artist)
+            self.album = try container.decodeIfPresent(String.self, forKey: .album)
+            self.durationMicros = try container.decodeIfPresent(Double.self, forKey: .durationMicros)
+            self.elapsedTimeMicros = try container.decodeIfPresent(Double.self, forKey: .elapsedTimeMicros)
+            self.applicationName = try container.decodeIfPresent(String.self, forKey: .applicationName)
+            self.bundleIdentifier = try container.decodeIfPresent(String.self, forKey: .bundleIdentifier)
+            self.artworkDataBase64 = try container.decodeIfPresent(String.self, forKey: .artworkDataBase64)
+            self.artworkMimeType = try container.decodeIfPresent(String.self, forKey: .artworkMimeType)
+
+            if let boolValue = try? container.decode(Bool.self, forKey: .isPlaying) {
+                self.isPlaying = boolValue
+            } else if let intValue = try? container.decode(Int.self, forKey: .isPlaying) {
+                self.isPlaying = (intValue == 1)
+            } else {
+                self.isPlaying = nil
+            }
+        }
     }
 } 
