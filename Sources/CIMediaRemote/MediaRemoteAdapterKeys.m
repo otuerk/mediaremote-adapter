@@ -15,3 +15,4 @@ NSString *const kTimestampEpochMicros = @"timestampEpochMicros";
 NSString *const kArtworkMimeType = @"artworkMimeType";
 NSString *const kArtworkDataBase64 = @"artworkDataBase64";
 NSString *const kApplicationName = @"applicationName";
+NSString *const kTrackIdentifier = @"trackIdentifier";

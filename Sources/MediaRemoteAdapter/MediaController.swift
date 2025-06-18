@@ -14,6 +14,7 @@ public class MediaController {
     private var dataBuffer = Data()
     private var playbackTimer: Timer?
     private var playbackInfo: (baseTime: TimeInterval, baseTimestamp: TimeInterval)?
+    private var currentTrackIdentifier: String?
 
     public var onTrackInfoReceived: ((TrackInfo) -> Void)?
     public var onListenerTerminated: (() -> Void)?
@@ -189,12 +190,29 @@ public class MediaController {
     }
 
     public func setTime(seconds: Double) {
+        // Invalidate the timer to prevent it from firing with stale data.
+        playbackTimer?.invalidate()
+        playbackTimer = nil
+        playbackInfo = nil
+    
+        // Optimistically update the UI to the seeked position. The authoritative
+        // update will arrive shortly from the framework to restart the timer.
+        onPlaybackTimeUpdate?(seconds)
+        
         DispatchQueue.global(qos: .userInitiated).async {
             self.runPerlCommand(arguments: ["set_time", String(seconds)])
         }
     }
     
     private func updatePlaybackTimer(with trackInfo: TrackInfo) {
+        let newTrackIdentifier = trackInfo.payload.trackIdentifier
+        
+        // When a new track is detected, reset the progress to 0.
+        if newTrackIdentifier != nil && newTrackIdentifier != self.currentTrackIdentifier {
+            self.currentTrackIdentifier = newTrackIdentifier
+            onPlaybackTimeUpdate?(0)
+        }
+
         playbackTimer?.invalidate()
 
         guard trackInfo.payload.isPlaying == true,
