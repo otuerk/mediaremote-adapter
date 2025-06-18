@@ -205,10 +205,10 @@ public class MediaController {
     }
     
     private func updatePlaybackTimer(with trackInfo: TrackInfo) {
-        let newTrackIdentifier = trackInfo.payload.trackIdentifier
+        let newTrackIdentifier = trackInfo.payload.uniqueIdentifier
         
         // When a new track is detected, reset the progress to 0.
-        if newTrackIdentifier != nil && newTrackIdentifier != self.currentTrackIdentifier {
+        if newTrackIdentifier != self.currentTrackIdentifier {
             self.currentTrackIdentifier = newTrackIdentifier
             onPlaybackTimeUpdate?(0)
         }

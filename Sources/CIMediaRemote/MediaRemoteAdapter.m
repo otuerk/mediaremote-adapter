@@ -132,7 +132,6 @@ convertNowPlayingInformation(NSDictionary *information) {
       }
       return nil;
     });
-    setKey((NSString *)kTrackIdentifier, (id)kMRMediaRemoteNowPlayingInfoUniqueIdentifier);
 
     return data;
 }

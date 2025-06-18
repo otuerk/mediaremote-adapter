@@ -7,16 +7,15 @@
 #define MediaRemoteAdapterKeys_h
 
 extern NSString *const kTitle;
-extern NSString *const kName;
-extern NSString *const kIsPlaying;
 extern NSString *const kArtist;
 extern NSString *const kAlbum;
+extern NSString *const kIsPlaying;
 extern NSString *const kDurationMicros;
 extern NSString *const kElapsedTimeMicros;
-extern NSString *const kTimestampEpochMicros;
-extern NSString *const kArtworkMimeType;
-extern NSString *const kArtworkDataBase64;
 extern NSString *const kBundleIdentifier;
 extern NSString *const kApplicationName;
+extern NSString *const kArtworkDataBase64;
+extern NSString *const kArtworkMimeType;
+extern NSString *const kTimestampEpochMicros;
 
 #endif /* MediaRemoteAdapterKeys_h */ 

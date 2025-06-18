@@ -16,7 +16,6 @@ public struct TrackInfo: Codable {
         public let artworkDataBase64: String?
         public let artworkMimeType: String?
         public let timestampEpochMicros: Double?
-        public let trackIdentifier: String?
 
         public var artwork: NSImage? {
             guard let base64String = artworkDataBase64,
@@ -27,8 +26,12 @@ public struct TrackInfo: Codable {
             return NSImage(data: data)
         }
 
+        public var uniqueIdentifier: String {
+            return "\(title ?? "")-\(artist ?? "")-\(album ?? "")"
+        }
+
         enum CodingKeys: String, CodingKey {
-            case title, artist, album, isPlaying, durationMicros, elapsedTimeMicros, applicationName, bundleIdentifier, artworkDataBase64, artworkMimeType, timestampEpochMicros, trackIdentifier
+            case title, artist, album, isPlaying, durationMicros, elapsedTimeMicros, applicationName, bundleIdentifier, artworkDataBase64, artworkMimeType, timestampEpochMicros
         }
 
         public init(from decoder: Decoder) throws {
@@ -43,7 +46,6 @@ public struct TrackInfo: Codable {
             self.artworkDataBase64 = try container.decodeIfPresent(String.self, forKey: .artworkDataBase64)
             self.artworkMimeType = try container.decodeIfPresent(String.self, forKey: .artworkMimeType)
             self.timestampEpochMicros = try container.decodeIfPresent(Double.self, forKey: .timestampEpochMicros)
-            self.trackIdentifier = try container.decodeIfPresent(String.self, forKey: .trackIdentifier)
 
             if let boolValue = try? container.decode(Bool.self, forKey: .isPlaying) {
                 self.isPlaying = boolValue
