@@ -252,7 +252,10 @@ void loop(void) {
     // --- Initial Fetch ---
     // Fetch the current state immediately when the loop starts, so we don't
     // have to wait for a media change event.
-    fetchAndProcess(0);
+    // We schedule this on our serial queue to ensure the run loop is active.
+    dispatch_async(_queue, ^{
+        fetchAndProcess(0);
+    });
 
     void (^handler)(NSNotification *) = ^(NSNotification *notification) {
       // If there's an existing block scheduled, cancel it.
