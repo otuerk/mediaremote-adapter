@@ -178,14 +178,58 @@ static void appForPID(int pid, void (^block)(NSRunningApplication *)) {
     }
 }
 
-static void appForNotification(NSNotification *notification,
-                               void (^block)(NSRunningApplication *)) {
-    id pidValue = notification.userInfo[(NSString *)kMRMediaRemoteNowPlayingApplicationPIDUserInfoKey];
-    if (pidValue != nil) {
-        appForPID([pidValue intValue], block);
+// Centralized function to process track info.
+// It converts, filters, and prints the final JSON data.
+static void processNowPlayingInfo(NSDictionary *nowPlayingInfo, BOOL isPlaying, NSRunningApplication *application) {
+    if (nowPlayingInfo == nil || [nowPlayingInfo count] == 0) return;
+    id title = nowPlayingInfo[(NSString *)kMRMediaRemoteNowPlayingInfoTitle];
+    if (title == nil || title == [NSNull null] || ([title isKindOfClass:[NSString class]] && [(NSString *)title length] == 0)) return;
+
+    // If a target bundle ID is set, filter out notifications from other apps.
+    if (_targetBundleIdentifier && application && ![application.bundleIdentifier isEqual:_targetBundleIdentifier]) {
+        return;
     }
+
+    NSMutableDictionary *data = convertNowPlayingInformation(nowPlayingInfo);
+    [data setObject:@(isPlaying) forKey:(NSString *)kIsPlaying];
+    if (application) {
+        data[(NSString *)kBundleIdentifier] = application.bundleIdentifier;
+        data[(NSString *)kApplicationName] = application.localizedName;
+    }
+    
+    printData(data);
 }
 
+// Fetches all necessary information (track info, playing state, PID)
+// and passes it to the processing function.
+static void fetchAndProcess(int pid) {
+    MRMediaRemoteGetNowPlayingInfo(dispatch_get_main_queue(), ^(CFDictionaryRef information) {
+        MRMediaRemoteGetNowPlayingApplicationIsPlaying(dispatch_get_main_queue(), ^(Boolean isPlaying) {
+            void (^processWithPid)(int) = ^(int finalPid) {
+                if (finalPid > 0) {
+                    __block bool appFound = false;
+                    appForPID(finalPid, ^(NSRunningApplication *process) {
+                        appFound = true;
+                        processNowPlayingInfo((__bridge NSDictionary *)information, isPlaying, process);
+                    });
+                    if (!appFound) {
+                        processNowPlayingInfo((__bridge NSDictionary *)information, isPlaying, nil);
+                    }
+                } else {
+                    processNowPlayingInfo((__bridge NSDictionary *)information, isPlaying, nil);
+                }
+            };
+
+            if (pid > 0) {
+                processWithPid(pid);
+            } else {
+                MRMediaRemoteGetNowPlayingApplicationPID(dispatch_get_main_queue(), ^(int fetchedPid) {
+                    processWithPid(fetchedPid);
+                });
+            }
+        });
+    });
+}
 
 // C function implementations to be called from Perl
 void bootstrap(void) {
@@ -205,23 +249,12 @@ void loop(void) {
     MRMediaRemoteRegisterForNowPlayingNotifications(
         dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0));
 
+    // --- Initial Fetch ---
+    // Fetch the current state immediately when the loop starts, so we don't
+    // have to wait for a media change event.
+    fetchAndProcess(0);
+
     void (^handler)(NSNotification *) = ^(NSNotification *notification) {
-      // --- Bundle ID Filtering ---
-      // If a target bundle ID is set, check if the notification matches.
-      if (_targetBundleIdentifier) {
-          __block BOOL isMatch = NO;
-          appForNotification(notification, ^(NSRunningApplication *process) {
-            if ([process.bundleIdentifier isEqualToString:_targetBundleIdentifier]) {
-                isMatch = YES;
-            }
-          });
-
-          // If it's not a match, ignore the event completely.
-          if (!isMatch) {
-              return;
-          }
-      }
-
       // If there's an existing block scheduled, cancel it.
       if (_debounce_block) {
           dispatch_block_cancel(_debounce_block);
@@ -229,32 +262,9 @@ void loop(void) {
 
       // Create a new block to be executed after the delay.
       _debounce_block = dispatch_block_create(0, ^{
-          MRMediaRemoteGetNowPlayingInfo(dispatch_get_main_queue(), ^(CFDictionaryRef information) {
-              NSDictionary *nowPlayingInfo = (__bridge NSDictionary *)information;
-
-              // If there's no information, or the dictionary is empty, do nothing.
-              if (nowPlayingInfo == nil || [nowPlayingInfo count] == 0) {
-                  return;
-              }
-
-              // Also ignore if there's no title, or the title is an empty string.
-              id title = nowPlayingInfo[(NSString *)kMRMediaRemoteNowPlayingInfoTitle];
-              if (title == nil || title == [NSNull null] || ([title isKindOfClass:[NSString class]] && [(NSString *)title length] == 0)) {
-                  return;
-              }
-              
-              // Now that we have valid track info, get the playing state.
-              MRMediaRemoteGetNowPlayingApplicationIsPlaying(dispatch_get_main_queue(), ^(Boolean isPlaying) {
-                  NSMutableDictionary *data = convertNowPlayingInformation(nowPlayingInfo);
-                  [data setObject:@(isPlaying) forKey:(NSString *)kIsPlaying];
-
-                  appForNotification(notification, ^(NSRunningApplication *process) {
-                      data[(NSString *)kBundleIdentifier] = process.bundleIdentifier;
-                      data[(NSString *)kApplicationName] = process.localizedName;
-                  });
-                  printData(data);
-              });
-          });
+          id pidValue = notification.userInfo[(NSString *)kMRMediaRemoteNowPlayingApplicationPIDUserInfoKey];
+          int pid = (pidValue != nil) ? [pidValue intValue] : 0;
+          fetchAndProcess(pid);
       });
       
       // Schedule the new block to run after a 100ms delay.
