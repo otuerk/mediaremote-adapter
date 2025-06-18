@@ -254,11 +254,17 @@ void loop(void) {
         dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0));
 
     // --- Initial Fetch ---
-    // Fetch the current state immediately when the loop starts, so we don't
-    // have to wait for a media change event.
-    // We schedule this on our serial queue to ensure the run loop is active.
+    // If a specific bundle ID was provided, find its PID and fetch its state.
+    // Otherwise, fetch the system's current "Now Playing" state.
     dispatch_async(_queue, ^{
-        fetchAndProcess(0);
+        int initialPid = 0;
+        if (_targetBundleIdentifier) {
+            NSArray<NSRunningApplication *> *apps = [NSRunningApplication runningApplicationsWithBundleIdentifier:_targetBundleIdentifier];
+            if (apps.count > 0) {
+                initialPid = apps[0].processIdentifier;
+            }
+        }
+        fetchAndProcess(initialPid);
     });
 
     void (^handler)(NSNotification *) = ^(NSNotification *notification) {
