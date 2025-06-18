@@ -35,40 +35,33 @@ This crucial step copies the framework into your app and signs it with your deve
 
 ## Usage
 
-Here is a basic example of how to use `MediaController`. For a complete, working example, see the `DockDoor` project.
+### Basic Example
+
+Here is a basic example of how to use `MediaController`.
 
 ```swift
 import MediaRemoteAdapter
 import Foundation
-
-// It's recommended to create a Codable struct to represent the track data.
-struct TrackInfo: Codable {
-    let payload: Payload
-    
-    struct Payload: Codable {
-        let title: String?
-        let artist: String?
-        let album: String?
-        let isPlaying: Bool?
-        let durationMicros: Double?
-        let elapsedTimeMicros: Double?
-        let applicationName: String?
-    }
-}
-
+import AppKit
 
 class YourAppController {
     let mediaController = MediaController()
 
     init() {
         // Handle incoming track data
-        mediaController.onTrackInfoReceived = { jsonData in
-            do {
-                let trackInfo = try JSONDecoder().decode(TrackInfo.self, from: jsonData)
-                print("Now Playing: \(trackInfo.payload.title ?? "N/A") - Playing: \(trackInfo.payload.isPlaying ?? false)")
-            } catch {
-                print("Failed to decode track info: \(error)")
+        mediaController.onTrackInfoReceived = { trackInfo in
+            print("Now Playing: \(trackInfo.payload.title ?? "N/A") from \(trackInfo.payload.applicationName ?? "Unknown App")")
+            
+            // You can now access the artwork directly as an NSImage
+            if let artworkImage = trackInfo.payload.artwork {
+                // Use your image here...
+                let yourImageView = NSImageView(image: artworkImage)
             }
+        }
+        
+        // Optionally handle cases where JSON decoding fails
+        mediaController.onDecodingError = { error, data in
+            print("Failed to decode JSON: \(error)")
         }
 
         // Handle listener termination
@@ -96,13 +89,51 @@ class YourAppController {
 }
 ```
 
+### Filtering by Application
+
+You can create a `MediaController` that only listens for events from a specific application by providing its bundle identifier during initialization. This is useful for creating separate views or controllers for different media apps.
+
+```swift
+// Controller that only receives events from Apple Music
+let musicController = MediaController(bundleIdentifier: "com.apple.Music")
+musicController.onTrackInfoReceived = { data in
+    // This will only be called for Apple Music events
+}
+musicController.startListening()
+
+// Controller that only receives events from Spotify
+let spotifyController = MediaController(bundleIdentifier: "com.spotify.client")
+spotifyController.onTrackInfoReceived = { data in
+    // This will only be called for Spotify events
+}
+spotifyController.startListening()
+```
+
+### Controlling Specific Applications
+
+The `MediaRemote` framework sends playback commands to whichever application the system currently considers the "Now Playing" app. **You cannot target a command to a specific background application.**
+
+To control a specific app (e.g., Spotify), you must first make it the active media source. This is typically done through user interaction (like pressing play in the app's window) or programmatically via AppleScript.
+
+For example, you can use `osascript` from the command line to tell an app to play, which brings it to the forefront of media control:
+```sh
+osascript -e 'tell application "Music" to play'
+```
+After this, any calls like `mediaController.pause()` will be directed to Music.
+
 ## API Overview
 
-### `MediaController()`
-Initializes a new controller.
+### `MediaController(bundleIdentifier: String? = nil)`
+Initializes a new controller. If `bundleIdentifier` is provided, the controller will only receive notifications from the application with that ID.
 
-### `var onTrackInfoReceived: ((Data) -> Void)?`
-A closure that is called with a raw JSON `Data` object whenever new track information is available. The data is a complete snapshot of the current state.
+### `var bundleIdentifier: String?`
+The bundle identifier of the application to filter events from. This can be set after initialization, but will only take effect the next time `startListening()` is called.
+
+### `var onTrackInfoReceived: ((TrackInfo) -> Void)?`
+A closure that is called whenever new track information is available. It provides a decoded `TrackInfo` object, which contains all track metadata and a computed `artwork` property of type `NSImage?`.
+
+### `var onDecodingError: ((Error, Data) -> Void)?`
+An optional closure that is called if the incoming JSON data from the listener process cannot be decoded into a `TrackInfo` object. This can be useful for debugging or handling unexpected data structures.
 
 ### `var onListenerTerminated: (() -> Void)?`
 A closure that is called if the background listener process terminates unexpectedly. You may want to restart it here.

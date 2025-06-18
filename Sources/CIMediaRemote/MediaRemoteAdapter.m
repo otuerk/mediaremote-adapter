@@ -20,6 +20,7 @@
 static CFRunLoopRef _runLoop = NULL;
 static dispatch_queue_t _queue;
 static dispatch_block_t _debounce_block = NULL;
+static NSString *_targetBundleIdentifier = NULL;
 
 // These keys identify a now playing item uniquely.
 static NSArray<NSString *> *identifyingItemKeys(void) {
@@ -189,6 +190,13 @@ static void appForNotification(NSNotification *notification,
 // C function implementations to be called from Perl
 void bootstrap(void) {
     _queue = dispatch_queue_create("mediaremote-adapter", DISPATCH_QUEUE_SERIAL);
+
+    // Read the target bundle identifier from the environment variable.
+    // This is set by the Perl script based on the `--id` command-line argument.
+    const char *bundleIdEnv = getenv("MEDIAREMOTEADAPTER_bundle_identifier");
+    if (bundleIdEnv != NULL) {
+        _targetBundleIdentifier = [NSString stringWithUTF8String:bundleIdEnv];
+    }
 }
 
 void loop(void) {
@@ -198,6 +206,22 @@ void loop(void) {
         dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0));
 
     void (^handler)(NSNotification *) = ^(NSNotification *notification) {
+      // --- Bundle ID Filtering ---
+      // If a target bundle ID is set, check if the notification matches.
+      if (_targetBundleIdentifier) {
+          __block BOOL isMatch = NO;
+          appForNotification(notification, ^(NSRunningApplication *process) {
+            if ([process.bundleIdentifier isEqualToString:_targetBundleIdentifier]) {
+                isMatch = YES;
+            }
+          });
+
+          // If it's not a match, ignore the event completely.
+          if (!isMatch) {
+              return;
+          }
+      }
+
       // If there's an existing block scheduled, cancel it.
       if (_debounce_block) {
           dispatch_block_cancel(_debounce_block);

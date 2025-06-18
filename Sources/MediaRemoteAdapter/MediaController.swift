@@ -12,10 +12,14 @@ public class MediaController {
 
     private var listeningProcess: Process?
     private var dataBuffer = Data()
-    public var onTrackInfoReceived: ((Data) -> Void)?
+    public var onTrackInfoReceived: ((TrackInfo) -> Void)?
     public var onListenerTerminated: (() -> Void)?
+    public var onDecodingError: ((Error, Data) -> Void)?
+    public var bundleIdentifier: String?
 
-    public init() {}
+    public init(bundleIdentifier: String? = nil) {
+        self.bundleIdentifier = bundleIdentifier
+    }
 
     private var libraryPath: String? {
         let bundle = Bundle(for: MediaController.self)
@@ -76,7 +80,14 @@ public class MediaController {
 
         listeningProcess = Process()
         listeningProcess?.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
-        listeningProcess?.arguments = [scriptPath, libraryPath, "loop"]
+
+        var arguments = [scriptPath]
+        if let bundleId = bundleIdentifier {
+            arguments.append("--id")
+            arguments.append(bundleId)
+        }
+        arguments.append(contentsOf: [libraryPath, "loop"])
+        listeningProcess?.arguments = arguments
 
         let outputPipe = Pipe()
         listeningProcess?.standardOutput = outputPipe
@@ -100,7 +111,12 @@ public class MediaController {
                 self.dataBuffer.removeSubrange(0..<range.upperBound)
                 
                 if !lineData.isEmpty {
-                    self.onTrackInfoReceived?(lineData)
+                    do {
+                        let trackInfo = try JSONDecoder().decode(TrackInfo.self, from: lineData)
+                        self.onTrackInfoReceived?(trackInfo)
+                    } catch {
+                        self.onDecodingError?(error, lineData)
+                    }
                 }
             }
         }
