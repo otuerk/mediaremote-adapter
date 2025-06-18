@@ -46,19 +46,26 @@ import AppKit
 
 class YourAppController {
     let mediaController = MediaController()
+    var currentTrackDuration: TimeInterval = 0
 
     init() {
         // Handle incoming track data
         mediaController.onTrackInfoReceived = { trackInfo in
-            print("Now Playing: \(trackInfo.payload.title ?? "N/A") from \(trackInfo.payload.applicationName ?? "Unknown App")")
+            print("Now Playing: \(trackInfo.payload.title ?? "N/A")")
+            self.currentTrackDuration = (trackInfo.payload.durationMicros ?? 0) / 1_000_000
             
-            // You can now access the artwork directly as an NSImage
             if let artworkImage = trackInfo.payload.artwork {
                 // Use your image here...
-                let yourImageView = NSImageView(image: artworkImage)
             }
         }
         
+        // Handle playback time updates for your UI
+        mediaController.onPlaybackTimeUpdate = { elapsedTime in
+            let percentage = self.currentTrackDuration > 0 ? (elapsedTime / self.currentTrackDuration) * 100 : 0
+            print(String(format: "Progress: %.2f%%", percentage))
+            // Update your progress bar here
+        }
+
         // Optionally handle cases where JSON decoding fails
         mediaController.onDecodingError = { error, data in
             print("Failed to decode JSON: \(error)")
@@ -131,6 +138,9 @@ The bundle identifier of the application to filter events from. This can be set 
 
 ### `var onTrackInfoReceived: ((TrackInfo) -> Void)?`
 A closure that is called whenever new track information is available. It provides a decoded `TrackInfo` object, which contains all track metadata and a computed `artwork` property of type `NSImage?`.
+
+### `var onPlaybackTimeUpdate: ((_ elapsedTime: TimeInterval) -> Void)?`
+A closure that provides a continuous stream of the current track's elapsed time in seconds. It fires multiple times per second while a track is playing and provides a final update when it's paused. This is ideal for updating UI elements like a progress bar.
 
 ### `var onDecodingError: ((Error, Data) -> Void)?`
 An optional closure that is called if the incoming JSON data from the listener process cannot be decoded into a `TrackInfo` object. This can be useful for debugging or handling unexpected data structures.

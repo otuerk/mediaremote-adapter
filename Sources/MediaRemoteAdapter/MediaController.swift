@@ -12,9 +12,13 @@ public class MediaController {
 
     private var listeningProcess: Process?
     private var dataBuffer = Data()
+    private var playbackTimer: Timer?
+    private var playbackInfo: (baseTime: TimeInterval, baseTimestamp: TimeInterval)?
+
     public var onTrackInfoReceived: ((TrackInfo) -> Void)?
     public var onListenerTerminated: (() -> Void)?
     public var onDecodingError: ((Error, Data) -> Void)?
+    public var onPlaybackTimeUpdate: ((_ elapsedTime: TimeInterval) -> Void)?
     public var bundleIdentifier: String?
 
     public init(bundleIdentifier: String? = nil) {
@@ -113,9 +117,14 @@ public class MediaController {
                 if !lineData.isEmpty {
                     do {
                         let trackInfo = try JSONDecoder().decode(TrackInfo.self, from: lineData)
-                        self.onTrackInfoReceived?(trackInfo)
+                        DispatchQueue.main.async {
+                            self.onTrackInfoReceived?(trackInfo)
+                            self.updatePlaybackTimer(with: trackInfo)
+                        }
                     } catch {
-                        self.onDecodingError?(error, lineData)
+                        DispatchQueue.main.async {
+                            self.onDecodingError?(error, lineData)
+                        }
                     }
                 }
             }
@@ -124,6 +133,7 @@ public class MediaController {
         listeningProcess?.terminationHandler = { [weak self] process in
             DispatchQueue.main.async {
                 self?.listeningProcess = nil
+                self?.playbackTimer?.invalidate()
                 self?.onListenerTerminated?()
             }
         }
@@ -138,6 +148,7 @@ public class MediaController {
 
     public func stopListening() {
         listeningProcess?.terminate()
+        playbackTimer?.invalidate()
         listeningProcess = nil
     }
 
@@ -181,5 +192,34 @@ public class MediaController {
         DispatchQueue.global(qos: .userInitiated).async {
             self.runPerlCommand(arguments: ["set_time", String(seconds)])
         }
+    }
+    
+    private func updatePlaybackTimer(with trackInfo: TrackInfo) {
+        playbackTimer?.invalidate()
+
+        guard trackInfo.payload.isPlaying == true,
+              let baseTime = trackInfo.payload.elapsedTimeMicros,
+              let baseTimestamp = trackInfo.payload.timestampEpochMicros
+        else {
+            if let lastKnownTime = trackInfo.payload.elapsedTimeMicros {
+                onPlaybackTimeUpdate?(lastKnownTime / 1_000_000)
+            }
+            return
+        }
+
+        self.playbackInfo = (baseTime: baseTime / 1_000_000,
+                               baseTimestamp: baseTimestamp / 1_000_000)
+
+        playbackTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+            self?.handleTimerTick()
+        }
+    }
+
+    @objc private func handleTimerTick() {
+        guard let info = playbackInfo else { return }
+        let now = Date().timeIntervalSince1970
+        let timePassed = now - info.baseTimestamp
+        let currentElapsedTime = info.baseTime + timePassed
+        onPlaybackTimeUpdate?(currentElapsedTime)
     }
 } 
