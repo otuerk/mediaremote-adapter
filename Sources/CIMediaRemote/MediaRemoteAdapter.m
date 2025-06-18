@@ -204,19 +204,20 @@ static void processNowPlayingInfo(NSDictionary *nowPlayingInfo, BOOL isPlaying, 
 // and passes it to the processing function.
 static void fetchAndProcess(int pid) {
     MRMediaRemoteGetNowPlayingInfo(_queue, ^(CFDictionaryRef information) {
+        NSDictionary *infoDict = [(__bridge NSDictionary *)information copy];
         MRMediaRemoteGetNowPlayingApplicationIsPlaying(_queue, ^(Boolean isPlaying) {
             void (^processWithPid)(int) = ^(int finalPid) {
                 if (finalPid > 0) {
                     __block bool appFound = false;
                     appForPID(finalPid, ^(NSRunningApplication *process) {
                         appFound = true;
-                        processNowPlayingInfo((__bridge NSDictionary *)information, isPlaying, process);
+                        processNowPlayingInfo(infoDict, isPlaying, process);
                     });
                     if (!appFound) {
-                        processNowPlayingInfo((__bridge NSDictionary *)information, isPlaying, nil);
+                        processNowPlayingInfo(infoDict, isPlaying, nil);
                     }
                 } else {
-                    processNowPlayingInfo((__bridge NSDictionary *)information, isPlaying, nil);
+                    processNowPlayingInfo(infoDict, isPlaying, nil);
                 }
             };
 
