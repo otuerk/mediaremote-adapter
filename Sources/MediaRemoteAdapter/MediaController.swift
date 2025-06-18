@@ -15,6 +15,7 @@ public class MediaController {
     private var playbackTimer: Timer?
     private var playbackInfo: (baseTime: TimeInterval, baseTimestamp: TimeInterval)?
     private var currentTrackIdentifier: String?
+    private var seekTimer: Timer?
 
     public var onTrackInfoReceived: ((TrackInfo) -> Void)?
     public var onListenerTerminated: (() -> Void)?
@@ -190,6 +191,9 @@ public class MediaController {
     }
 
     public func setTime(seconds: Double) {
+        // Invalidate any existing seek timer to debounce rapid calls.
+        seekTimer?.invalidate()
+
         // Invalidate the timer to prevent it from firing with stale data.
         playbackTimer?.invalidate()
         playbackTimer = nil
@@ -199,8 +203,10 @@ public class MediaController {
         // update will arrive shortly from the framework to restart the timer.
         onPlaybackTimeUpdate?(seconds)
         
-        DispatchQueue.global(qos: .userInitiated).async {
-            self.runPerlCommand(arguments: ["set_time", String(seconds)])
+        seekTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: false) { [weak self] _ in
+            DispatchQueue.global(qos: .userInitiated).async {
+                self?.runPerlCommand(arguments: ["set_time", String(seconds)])
+            }
         }
     }
     
