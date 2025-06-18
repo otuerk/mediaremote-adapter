@@ -15,6 +15,7 @@ public class MediaController {
     private var playbackTimer: Timer?
     private var playbackInfo: (baseTime: TimeInterval, baseTimestamp: TimeInterval)?
     private var currentTrackIdentifier: String?
+    private var isPlaying = false
     private var seekTimer: Timer?
 
     public var onTrackInfoReceived: ((TrackInfo) -> Void)?
@@ -191,19 +192,22 @@ public class MediaController {
     }
 
     public func setTime(seconds: Double) {
-        // Invalidate any existing seek timer to debounce rapid calls.
         seekTimer?.invalidate()
 
-        // Invalidate the timer to prevent it from firing with stale data.
-        playbackTimer?.invalidate()
-        playbackTimer = nil
-        playbackInfo = nil
-    
-        // Optimistically update the UI to the seeked position. The authoritative
-        // update will arrive shortly from the framework to restart the timer.
+        // Optimistically update the UI and our internal timer state.
         onPlaybackTimeUpdate?(seconds)
-        
-        seekTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: false) { [weak self] _ in
+        self.playbackInfo = (baseTime: seconds, baseTimestamp: Date().timeIntervalSince1970)
+
+        // If we are currently playing, ensure the timer continues to run from the new
+        // optimistic position for a smooth UI experience during scrubbing.
+        if isPlaying, playbackTimer == nil || !playbackTimer!.isValid {
+            playbackTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+                self?.handleTimerTick()
+            }
+        }
+
+        // Throttle the actual seek command to avoid overwhelming the system.
+        seekTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: false) { [weak self] _ in
             DispatchQueue.global(qos: .userInitiated).async {
                 self?.runPerlCommand(arguments: ["set_time", String(seconds)])
             }
@@ -221,7 +225,10 @@ public class MediaController {
 
         playbackTimer?.invalidate()
 
-        guard trackInfo.payload.isPlaying == true,
+        // Update our local playing state.
+        self.isPlaying = trackInfo.payload.isPlaying ?? false
+
+        guard self.isPlaying,
               let baseTime = trackInfo.payload.elapsedTimeMicros,
               let baseTimestamp = trackInfo.payload.timestampEpochMicros
         else {
