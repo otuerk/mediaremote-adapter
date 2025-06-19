@@ -164,6 +164,10 @@ These functions send an asynchronous command to the background process.
 - `stop()`
 - `setTime(seconds: Double)`
 
+## Acknowledgements
+
+This project is a Swift-based implementation heavily inspired by the original Objective-C project, [ungive/mediaremote-adapter](https://github.com/ungive/mediaremote-adapter). The core technique of using a Perl script to bypass framework restrictions was pioneered in that repository.
+
 ## License
 
 This project is licensed under the BSD 3-Clause License. See the [LICENSE](LICENSE) file for details.
