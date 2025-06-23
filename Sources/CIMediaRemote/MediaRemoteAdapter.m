@@ -250,6 +250,9 @@ void bootstrap(void) {
 void loop(void) {
     _runLoop = CFRunLoopGetCurrent();
 
+    MRMediaRemoteRegisterForNowPlayingNotifications(
+        dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0));
+
     // --- Initial Fetch ---
     // Fetch the current state immediately when the loop starts, so we don't
     // have to wait for a media change event.
@@ -275,14 +278,8 @@ void loop(void) {
       dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), _queue, _debounce_block);
     };
     
-    [[NSDistributedNotificationCenter defaultCenter]
+    [[NSNotificationCenter defaultCenter]
         addObserverForName:(NSString *)kMRMediaRemoteNowPlayingInfoDidChangeNotification
-                    object:nil
-                     queue:nil
-                usingBlock:handler];
-    
-    [[NSDistributedNotificationCenter defaultCenter]
-        addObserverForName:(NSString *)kMRMediaRemoteNowPlayingApplicationIsPlayingDidChangeNotification
                     object:nil
                      queue:nil
                 usingBlock:handler];
