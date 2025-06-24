@@ -60,6 +60,9 @@ class YourAppController {
         }
         
         // Handle playback time updates for your UI
+        // WARNING: This handler is for demonstration only. It uses a polling
+        // mechanism that can lead to high CPU usage and is not recommended for
+        // production environments. The timer is an estimate.
         mediaController.onPlaybackTimeUpdate = { elapsedTime in
             let percentage = self.currentTrackDuration > 0 ? (elapsedTime / self.currentTrackDuration) * 100 : 0
             print(String(format: "Progress: %.2f%%", percentage))
@@ -141,6 +144,8 @@ A closure that is called whenever new track information is available. It provide
 
 ### `var onPlaybackTimeUpdate: ((_ elapsedTime: TimeInterval) -> Void)?`
 A closure that provides a continuous stream of the current track's elapsed time in seconds. It fires multiple times per second while a track is playing and provides a final update when it's paused. This is ideal for updating UI elements like a progress bar.
+
+> **Note:** The playback timer is an estimate and not guaranteed to be perfectly accurate. Due to its reliance on frequent polling, this feature can cause high CPU usage and is therefore not recommended for prolonged use in production environments where performance is critical.
 
 ### `var onDecodingError: ((Error, Data) -> Void)?`
 An optional closure that is called if the incoming JSON data from the listener process cannot be decoded into a `TrackInfo` object. This can be useful for debugging or handling unexpected data structures.
