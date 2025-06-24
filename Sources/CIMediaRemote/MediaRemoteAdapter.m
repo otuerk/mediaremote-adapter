@@ -98,6 +98,9 @@ convertNowPlayingInformation(NSDictionary *information) {
           information[(NSString *)kMRMediaRemoteNowPlayingInfoDuration];
       if (duration != nil) {
           NSTimeInterval durationMicros = [duration doubleValue] * 1000 * 1000;
+          if (isinf(durationMicros) || isnan(durationMicros)) {
+              return nil;
+          }
           return @(floor(durationMicros));
       }
       return nil;
@@ -108,6 +111,9 @@ convertNowPlayingInformation(NSDictionary *information) {
       if (elapsedTimeValue != nil) {
           NSTimeInterval elapsedTimeMicros =
               [elapsedTimeValue doubleValue] * 1000 * 1000;
+          if (isinf(elapsedTimeMicros) || isnan(elapsedTimeMicros)) {
+              return nil;
+          }
           return @(floor(elapsedTimeMicros));
       }
       return nil;
