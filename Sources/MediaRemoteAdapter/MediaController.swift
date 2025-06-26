@@ -74,7 +74,6 @@ public class MediaController {
 
     public func startListening() {
         guard listeningProcess == nil else {
-            print("Listener process is already running.")
             return
         }
 
