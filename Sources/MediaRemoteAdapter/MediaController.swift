@@ -71,6 +71,22 @@ public class MediaController {
             return (nil, error.localizedDescription, -1)
         }
     }
+    
+    public func getTrackInfo(_ onReceive: @escaping (TrackInfo?) -> Void){
+        DispatchQueue.global(qos: .userInitiated).async {
+            let (output, _, status) = self.runPerlCommand(arguments: ["get"])
+            
+            if let output, status == 0 {
+                if let outputData = output.data(using: .utf8) {
+                    let trackInfo = try? JSONDecoder().decode(TrackInfo.self, from: outputData)
+                    
+                    onReceive(trackInfo)
+                }
+            }
+            
+            onReceive(nil)
+        }
+    }
 
     public func startListening() {
         guard listeningProcess == nil else {
