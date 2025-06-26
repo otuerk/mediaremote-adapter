@@ -111,6 +111,11 @@ public class MediaController {
             
             // Process all complete lines in the buffer.
             while let range = self.dataBuffer.firstRange(of: "\n".data(using: .utf8)!) {
+                // Make sure to check ranges
+                guard range.lowerBound <= self.dataBuffer.count else {
+                    break
+                }
+                
                 let lineData = self.dataBuffer.subdata(in: 0..<range.lowerBound)
                 
                 // Remove the line and the newline character from the buffer.
