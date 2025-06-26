@@ -74,6 +74,7 @@ install_xsub("next_track", $libref);
 install_xsub("previous_track", $libref);
 install_xsub("stop_command", $libref);
 install_xsub("set_time_from_env", $libref);
+install_xsub("get", $libref);
 
 # 4. Call the bootstrap function to initialize the C code.
 bootstrap();
@@ -98,6 +99,8 @@ if ($command eq 'loop') {
     die "Missing time argument for set_time\n" unless defined $time;
     $ENV{'MEDIAREMOTE_SET_TIME'} = $time;
     set_time_from_env();
+} elsif ($command eq 'get') {
+    get();
 } else {
     die "Unknown command: $command\n";
 }

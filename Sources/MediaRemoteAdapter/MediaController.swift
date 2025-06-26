@@ -79,8 +79,8 @@ public class MediaController {
             if let output, status == 0 {
                 if let outputData = output.data(using: .utf8) {
                     let trackInfo = try? JSONDecoder().decode(TrackInfo.self, from: outputData)
-                    
                     onReceive(trackInfo)
+                    return
                 }
             }
             

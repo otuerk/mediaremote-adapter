@@ -325,4 +325,8 @@ void set_time_from_env(void) {
     
     double time = atof(timeStr);
     MRMediaRemoteSetElapsedTime(time);
+}
+
+void get(void) {
+    fetchAndProcess(0);
 } 
