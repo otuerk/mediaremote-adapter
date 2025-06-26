@@ -211,6 +211,7 @@ static void processNowPlayingInfo(NSDictionary *nowPlayingInfo, BOOL isPlaying, 
 static void fetchAndProcess(int pid) {
     MRMediaRemoteGetNowPlayingInfo(_queue, ^(CFDictionaryRef information) {
         if (information == NULL) {
+            printf("No info present");
             return; // No media playing, do nothing.
         }
         NSDictionary *infoDict = [(__bridge NSDictionary *)information copy];
@@ -328,5 +329,6 @@ void set_time_from_env(void) {
 }
 
 void get(void) {
+    printf("IN GET");
     fetchAndProcess(0);
 } 
