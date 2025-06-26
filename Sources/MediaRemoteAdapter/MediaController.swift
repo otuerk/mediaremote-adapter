@@ -72,19 +72,71 @@ public class MediaController {
         }
     }
     
+    /// Returns the track info independently from the actual listen process. Since this is an async operation, the whole setup of the
+    /// output reading etc. has to be performed again
     public func getTrackInfo(_ onReceive: @escaping (TrackInfo?) -> Void){
-        DispatchQueue.global(qos: .userInitiated).async {
-            let (output, _, status) = self.runPerlCommand(arguments: ["get"])
+        guard let scriptPath = perlScriptPath else {
+            return
+        }
+        guard let libraryPath = libraryPath else {
+            return
+        }
+
+        let getListeningProcess = Process()
+        getListeningProcess.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
+
+        var arguments = [scriptPath]
+        if let bundleId = bundleIdentifier {
+            arguments.append("--id")
+            arguments.append(bundleId)
+        }
+        arguments.append(contentsOf: [libraryPath, "get"])
+        getListeningProcess.arguments = arguments
+
+        let outputPipe = Pipe()
+        getListeningProcess.standardOutput = outputPipe
+
+        outputPipe.fileHandleForReading.readabilityHandler = { [weak self] fileHandle in
+            guard let self = self else { return }
+
+            let incomingData = fileHandle.availableData
+            if incomingData.isEmpty {
+                // This can happen when the process terminates.
+                return
+            }
+
+            self.dataBuffer.append(incomingData)
             
-            if let output, status == 0 {
-                if let outputData = output.data(using: .utf8) {
-                    let trackInfo = try? JSONDecoder().decode(TrackInfo.self, from: outputData)
-                    onReceive(trackInfo)
-                    return
+            // Process all complete lines in the buffer.
+            while let range = self.dataBuffer.firstRange(of: "\n".data(using: .utf8)!) {
+                // Make sure to check ranges
+                guard range.lowerBound <= self.dataBuffer.count else {
+                    break
+                }
+                
+                let lineData = self.dataBuffer.subdata(in: 0..<range.lowerBound)
+                
+                // Remove the line and the newline character from the buffer.
+                self.dataBuffer.removeSubrange(0..<range.upperBound)
+                
+                if !lineData.isEmpty {
+                    do {
+                        let trackInfo = try JSONDecoder().decode(TrackInfo.self, from: lineData)
+                        DispatchQueue.main.async {
+                            onReceive(trackInfo)
+                            getListeningProcess.terminate()
+                        }
+                    } catch {
+                        onReceive(nil)
+                        getListeningProcess.terminate()
+                    }
                 }
             }
-            
-            onReceive(nil)
+        }
+
+        do {
+            try getListeningProcess.run()
+        } catch {
         }
     }
 

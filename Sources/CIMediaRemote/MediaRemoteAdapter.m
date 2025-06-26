@@ -331,4 +331,4 @@ void set_time_from_env(void) {
 void get(void) {
     printf("IN GET");
     fetchAndProcess(0);
-} 
+}
