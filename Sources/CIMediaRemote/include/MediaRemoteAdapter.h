@@ -15,6 +15,7 @@ extern "C" {
 
 void bootstrap(void);
 void loop(void);
+void get(void);
 void play(void);
 void pause_command(void);
 void toggle_play_pause(void);
