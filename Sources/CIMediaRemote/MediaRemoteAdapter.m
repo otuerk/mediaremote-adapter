@@ -211,7 +211,6 @@ static void processNowPlayingInfo(NSDictionary *nowPlayingInfo, BOOL isPlaying, 
 static void fetchAndProcess(int pid) {
     MRMediaRemoteGetNowPlayingInfo(_queue, ^(CFDictionaryRef information) {
         if (information == NULL) {
-            printf("No info present");
             return; // No media playing, do nothing.
         }
         NSDictionary *infoDict = [(__bridge NSDictionary *)information copy];
@@ -329,6 +328,40 @@ void set_time_from_env(void) {
 }
 
 void get(void) {
-    printf("IN GET");
-    fetchAndProcess(0);
+    __block BOOL completed = NO;
+    
+    MRMediaRemoteGetNowPlayingInfo(_queue, ^(CFDictionaryRef information) {
+        if (information == NULL) {
+            completed = YES;
+            return; // No media playing, do nothing.
+        }
+        NSDictionary *infoDict = [(__bridge NSDictionary *)information copy];
+        MRMediaRemoteGetNowPlayingApplicationIsPlaying(_queue, ^(Boolean isPlaying) {
+            void (^processWithPid)(int) = ^(int finalPid) {
+                if (finalPid > 0) {
+                    __block bool appFound = false;
+                    appForPID(finalPid, ^(NSRunningApplication *process) {
+                        appFound = true;
+                        processNowPlayingInfo(infoDict, isPlaying, process);
+                    });
+                    if (!appFound) {
+                        processNowPlayingInfo(infoDict, isPlaying, nil);
+                    }
+                } else {
+                    processNowPlayingInfo(infoDict, isPlaying, nil);
+                }
+                completed = YES;
+            };
+
+            MRMediaRemoteGetNowPlayingApplicationPID(_queue, ^(int fetchedPid) {
+                processWithPid(fetchedPid);
+            });
+        });
+    });
+    
+    // Wait for completion with timeout
+    NSDate *timeout = [NSDate dateWithTimeIntervalSinceNow:2.0];
+    while (!completed && [[NSDate date] compare:timeout] == NSOrderedAscending) {
+        [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.1]];
+    }
 }

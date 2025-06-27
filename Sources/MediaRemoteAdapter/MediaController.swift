@@ -85,6 +85,9 @@ public class MediaController {
         let getListeningProcess = Process()
         getListeningProcess.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
 
+        var getDataBuffer = Data()
+        var callbackExecuted = false
+        
         var arguments = [scriptPath]
         if let bundleId = bundleIdentifier {
             arguments.append("--id")
@@ -105,31 +108,48 @@ public class MediaController {
                 return
             }
 
-            self.dataBuffer.append(incomingData)
+            getDataBuffer.append(incomingData)
             
             // Process all complete lines in the buffer.
-            while let range = self.dataBuffer.firstRange(of: "\n".data(using: .utf8)!) {
+            while let range = getDataBuffer.firstRange(of: "\n".data(using: .utf8)!) {
                 // Make sure to check ranges
-                guard range.lowerBound <= self.dataBuffer.count else {
+                guard range.lowerBound <= getDataBuffer.count else {
                     break
                 }
                 
-                let lineData = self.dataBuffer.subdata(in: 0..<range.lowerBound)
+                let lineData = getDataBuffer.subdata(in: 0..<range.lowerBound)
                 
                 // Remove the line and the newline character from the buffer.
-                self.dataBuffer.removeSubrange(0..<range.upperBound)
+                getDataBuffer.removeSubrange(0..<range.upperBound)
                 
                 if !lineData.isEmpty {
                     do {
                         let trackInfo = try JSONDecoder().decode(TrackInfo.self, from: lineData)
-                        DispatchQueue.main.async {
-                            onReceive(trackInfo)
-                            getListeningProcess.terminate()
+                        if !callbackExecuted {
+                            callbackExecuted = true
+                            DispatchQueue.main.async {
+                                onReceive(trackInfo)
+                            }
                         }
+                        return
                     } catch {
-                        onReceive(nil)
-                        getListeningProcess.terminate()
+                        if !callbackExecuted {
+                            callbackExecuted = true
+                            DispatchQueue.main.async {
+                                onReceive(nil)
+                            }
+                        }
+                        return
                     }
+                }
+            }
+        }
+        
+        getListeningProcess.terminationHandler = { _ in
+            if !callbackExecuted {
+                DispatchQueue.main.async {
+                    // If we reach here and haven't called onReceive yet, it means no data was available
+                    onReceive(nil)
                 }
             }
         }
