@@ -203,6 +203,10 @@ static void processNowPlayingInfo(NSDictionary *nowPlayingInfo, BOOL isPlaying, 
         data[(NSString *)kApplicationName] = application.localizedName;
     }
     
+    if (application != nil) {
+        data[(NSString *)kPID] = [NSString stringWithFormat:@"%d", application.processIdentifier];
+    }
+    
     printData(data);
 }
 
