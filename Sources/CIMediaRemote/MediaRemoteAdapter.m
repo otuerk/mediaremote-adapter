@@ -21,6 +21,8 @@ static CFRunLoopRef _runLoop = NULL;
 static dispatch_queue_t _queue;
 static dispatch_block_t _debounce_block = NULL;
 static NSString *_targetBundleIdentifier = NULL;
+static pid_t _parentPID = 0;
+static dispatch_source_t _parentMonitorTimer = NULL;
 
 // These keys identify a now playing item uniquely.
 static NSArray<NSString *> *identifyingItemKeys(void) {
@@ -245,6 +247,38 @@ static void fetchAndProcess(int pid) {
     });
 }
 
+// Check if parent process is still alive
+static void checkParentProcess(void) {
+    if (_parentPID > 0) {
+        // Use kill(pid, 0) to check if process exists without sending a signal
+        if (kill(_parentPID, 0) != 0) {
+            // Parent process is dead, terminate this process
+            printErr(@"Parent process died, terminating");
+            exit(0);
+        }
+    }
+}
+
+// Set up periodic parent process monitoring
+static void setupParentMonitoring(void) {
+    _parentPID = getppid(); // Get parent process ID
+    
+    // Create a timer that checks parent process every 5 seconds
+    _parentMonitorTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, _queue);
+    if (_parentMonitorTimer) {
+        dispatch_source_set_timer(_parentMonitorTimer, 
+                                 dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC), 
+                                 5 * NSEC_PER_SEC, 
+                                 1 * NSEC_PER_SEC);
+        
+        dispatch_source_set_event_handler(_parentMonitorTimer, ^{
+            checkParentProcess();
+        });
+        
+        dispatch_resume(_parentMonitorTimer);
+    }
+}
+
 // C function implementations to be called from Perl
 void bootstrap(void) {
     _queue = dispatch_queue_create("mediaremote-adapter", DISPATCH_QUEUE_SERIAL);
@@ -255,6 +289,9 @@ void bootstrap(void) {
     if (bundleIdEnv != NULL) {
         _targetBundleIdentifier = [NSString stringWithUTF8String:bundleIdEnv];
     }
+    
+    // Set up parent process monitoring
+    setupParentMonitoring();
 }
 
 void loop(void) {
