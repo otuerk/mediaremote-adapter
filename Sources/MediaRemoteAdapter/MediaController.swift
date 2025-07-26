@@ -17,6 +17,8 @@ public class MediaController {
     private var currentTrackIdentifier: String?
     private var isPlaying = false
     private var seekTimer: Timer?
+    private var eventCount = 0
+    private var restartThreshold = 100 // Restart process every x events to clear memory leak
 
     public var onTrackInfoReceived: ((TrackInfo) -> Void)?
     public var onListenerTerminated: (() -> Void)?
@@ -164,7 +166,12 @@ public class MediaController {
         guard listeningProcess == nil else {
             return
         }
-
+        
+        eventCount = 0 // Reset event count
+        startListeningInternal()
+    }
+    
+    private func startListeningInternal() {
         guard let scriptPath = perlScriptPath else {
             return
         }
@@ -210,11 +217,19 @@ public class MediaController {
                 self.dataBuffer.removeSubrange(0..<range.upperBound)
                 
                 if !lineData.isEmpty {
+                    // Increment event count and check for restart
+                    self.eventCount += 1
+                    
                     do {
                         let trackInfo = try JSONDecoder().decode(TrackInfo.self, from: lineData)
                         DispatchQueue.main.async {
-                            self.onTrackInfoReceived?(trackInfo)
-                            self.updatePlaybackTimer(with: trackInfo)
+                            // Check if we need to restart after processing
+                            if self.eventCount >= self.restartThreshold {
+                                self.restartListeningProcess()
+                            } else {
+                                self.onTrackInfoReceived?(trackInfo)
+                                self.updatePlaybackTimer(with: trackInfo)
+                            }
                         }
                     } catch {
                         DispatchQueue.main.async {
@@ -229,7 +244,10 @@ public class MediaController {
             DispatchQueue.main.async {
                 self?.listeningProcess = nil
                 self?.playbackTimer?.invalidate()
-                self?.onListenerTerminated?()
+                // Don't call onListenerTerminated if this is a planned restart
+                if self?.eventCount != 0 {
+                    self?.onListenerTerminated?()
+                }
             }
         }
 
@@ -344,5 +362,22 @@ public class MediaController {
         let timePassed = now - info.baseTimestamp
         let currentElapsedTime = info.baseTime + timePassed
         onPlaybackTimeUpdate?(currentElapsedTime)
+    }
+    
+    private func restartListeningProcess() {
+        // Stop current process
+        listeningProcess?.terminate()
+        listeningProcess = nil
+        
+        // Clear data buffer to free any accumulated data
+        dataBuffer.removeAll()
+        
+        // Reset event count
+        eventCount = 0
+        
+        // Wait a brief moment for cleanup, then restart
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            self?.startListeningInternal()
+        }
     }
 } 
