@@ -48,16 +48,18 @@ public struct TrackInfo: Codable {
             self.artworkMimeType = try container.decodeIfPresent(String.self, forKey: .artworkMimeType)
             self.timestampEpochMicros = try container.decodeIfPresent(Double.self, forKey: .timestampEpochMicros)
             
-            let pidString = try container.decodeIfPresent(String.self, forKey: .PID)
-            if let pidString {
-                self.PID = pid_t(pidString)
+            if let pidNumber = try? container.decodeIfPresent(Int32.self, forKey: .PID) {
+                self.PID = pid_t(pidNumber)
+            } else if let pidString = try? container.decodeIfPresent(String.self, forKey: .PID),
+                      let pidNumber = Int32(pidString) {
+                self.PID = pid_t(pidNumber)
             } else {
                 self.PID = nil
             }
 
-            if let boolValue = try? container.decode(Bool.self, forKey: .isPlaying) {
+            if let boolValue = try container.decodeIfPresent(Bool.self, forKey: .isPlaying) {
                 self.isPlaying = boolValue
-            } else if let intValue = try? container.decode(Int.self, forKey: .isPlaying) {
+            } else if let intValue = try container.decodeIfPresent(Int.self, forKey: .isPlaying) {
                 self.isPlaying = (intValue == 1)
             } else {
                 self.isPlaying = nil
