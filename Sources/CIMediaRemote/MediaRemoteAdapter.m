@@ -189,7 +189,10 @@ static void appForPID(int pid, void (^block)(NSRunningApplication *)) {
 // Centralized function to process track info.
 // It converts, filters, and prints the final JSON data.
 static void processNowPlayingInfo(NSDictionary *nowPlayingInfo, BOOL isPlaying, NSRunningApplication *application) {
-    if (nowPlayingInfo == nil || [nowPlayingInfo count] == 0) return;
+    if (nowPlayingInfo == nil || [nowPlayingInfo count] == 0) {
+        printOut([NSString stringWithString:@"NIL"]);
+        return;
+    }
     id title = nowPlayingInfo[(NSString *)kMRMediaRemoteNowPlayingInfoTitle];
     if (title == nil || title == [NSNull null] || ([title isKindOfClass:[NSString class]] && [(NSString *)title length] == 0)) return;
 
@@ -217,6 +220,7 @@ static void processNowPlayingInfo(NSDictionary *nowPlayingInfo, BOOL isPlaying, 
 static void fetchAndProcess(int pid) {
     MRMediaRemoteGetNowPlayingInfo(_queue, ^(CFDictionaryRef information) {
         if (information == NULL) {
+            processNowPlayingInfo(nil, false, nil);
             return; // No media playing, do nothing.
         }
         NSDictionary *infoDict = [(__bridge NSDictionary *)information copy];

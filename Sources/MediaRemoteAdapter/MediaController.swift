@@ -20,7 +20,7 @@ public class MediaController {
     private var eventCount = 0
     private var restartThreshold = 100 // Restart process every x events to clear memory leak
 
-    public var onTrackInfoReceived: ((TrackInfo) -> Void)?
+    public var onTrackInfoReceived: ((TrackInfo?) -> Void)?
     public var onListenerTerminated: (() -> Void)?
     public var onDecodingError: ((Error, Data) -> Void)?
     public var onPlaybackTimeUpdate: ((_ elapsedTime: TimeInterval) -> Void)?
@@ -216,7 +216,11 @@ public class MediaController {
                 // Remove the line and the newline character from the buffer.
                 self.dataBuffer.removeSubrange(0..<range.upperBound)
                 
-                if !lineData.isEmpty {
+                // Check for "NIL" in data value, as this is an indicator that there's currently no
+                // mediaplayer at all
+                if lineData.count == 3, lineData == "NIL".data(using: .ascii) {
+                    self.onTrackInfoReceived?(nil)
+                } else if !lineData.isEmpty {
                     // Increment event count and check for restart
                     self.eventCount += 1
                     
